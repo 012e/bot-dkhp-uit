@@ -32,7 +32,7 @@ async function confirmRegistration(page: Page): Promise<void> {
 async function reloadInIntervalsUntil(
   page: Page,
   interval: number,
-  time: Date,
+  time: Date
 ) {
   let diff = time.valueOf() - Date.now().valueOf();
   if (diff < 0) return;
@@ -52,6 +52,7 @@ async function main() {
   const browser = await chromium.launch({ headless: false });
   const context = await browser.newContext(devices["iPhone 11"]);
   const page = await context.newPage();
+  let classes = config.classes;
 
   await page.goto("https://dkhp.uit.edu.vn");
   await page.getByLabel("Mã sinh viên").fill(config.username);
@@ -60,7 +61,7 @@ async function main() {
   await page.waitForLoadState("networkidle");
   await page.goto("https://dkhp.uit.edu.vn/app/reg");
   await page.waitForResponse(
-    (res) => res.url() === "https://dkhpapi.uit.edu.vn/courses",
+    (res) => res.url() === "https://dkhpapi.uit.edu.vn/courses"
   );
   await delay(1500);
   if (userConfig.timer ?? false) {
@@ -70,14 +71,16 @@ async function main() {
     await reloadInIntervalsUntil(page, INTERUPT_INTERVAL, beginTime); // avoid cookie timeouts
   }
 
-  while (true) {
+  while (classes.length > 0) {
     try {
       let ok = false;
-      for (const sub of config.classes) {
+      for (const sub of classes) {
+        console.log(`${classes.length} classes remaining`);
         console.log(`registering ${sub}`);
         if (await registerClass(page, sub)) {
           ok = true;
           console.log(`registered ${sub} successfully`);
+          classes = classes.filter((c) => c !== sub);
         } else {
           console.log(`couldn't register ${sub}`);
         }
@@ -94,10 +97,12 @@ async function main() {
     await delay(3000);
     await page.reload();
     await page.waitForResponse(
-      (res) => res.url() === "https://dkhpapi.uit.edu.vn/courses",
+      (res) => res.url() === "https://dkhpapi.uit.edu.vn/courses"
     );
     await delay(1000);
   }
+  console.log("All classes registered successfully!");
+  await browser.close();
 }
 
 main();
