@@ -73,9 +73,9 @@ async function main() {
 
   while (classes.length > 0) {
     try {
+      console.log(`${classes.length} classes remaining`);
       let ok = false;
       for (const sub of classes) {
-        console.log(`${classes.length} classes remaining`);
         console.log(`registering ${sub}`);
         if (await registerClass(page, sub)) {
           ok = true;
