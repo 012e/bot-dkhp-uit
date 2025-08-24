@@ -18,7 +18,21 @@ const DKHPConfigSchema = z
   .refine((data) => !data.timer || data.startTime, {
     message: "startTime is required when timer is enabled",
     path: ["startTime"],
-  });
+  })
+  .refine(
+    (data) => {
+      // startTime must be in the future if timer is enabled
+      if (data.timer && data.startTime) {
+        const start = new Date(data.startTime);
+        return start > new Date();
+      }
+      return true;
+    },
+    {
+      message: "startTime must be in the future",
+      path: ["startTime"],
+    },
+  );
 
 type DKHPConfig = z.infer<typeof DKHPConfigSchema>;
 
@@ -66,7 +80,7 @@ class DKHPRegistration {
 
       if (!result.success) {
         console.error("Configuration validation failed:");
-        console.log(z.prettifyError(result.error));
+        console.error(z.prettifyError(result.error));
         process.exit(1);
       }
 
