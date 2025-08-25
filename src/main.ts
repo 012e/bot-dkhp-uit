@@ -21,7 +21,17 @@ const DKHPConfigSchema = z
     loginTries: z.number().int().positive().default(10),
     retryDelay: z.number().positive().default(5000),
     timer: z.boolean().optional(),
-    startTime: z.iso.datetime().optional(),
+    startTime: z.iso
+      .datetime()
+      .optional()
+      .transform((str) => {
+        // mid night hack
+        if (str.endsWith("Z")) {
+          // If it does, remove the last character
+          str = str.slice(0, -1);
+        }
+        return str;
+      }),
   })
   .refine((data) => !data.timer || data.startTime, {
     message: "startTime is required when timer is enabled",
