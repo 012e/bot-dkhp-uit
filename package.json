@@ -3,7 +3,7 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/main",
-    "run": "pnpm run build && pnpm run start"
+    "run": "npm run build && npm run start"
   },
   "devDependencies": {
     "@playwright/test": "^1.54.2",
