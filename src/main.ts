@@ -1,6 +1,14 @@
 import { chromium, devices, Page, Browser, BrowserContext } from "playwright";
 import { z } from "zod";
 import fs from "fs";
+import ora from "ora";
+import chalk from "chalk";
+import {
+  format,
+  intervalToDuration,
+  formatDuration,
+  differenceInSeconds,
+} from "date-fns";
 
 // Zod schema for config validation
 const DKHPConfigSchema = z
@@ -93,8 +101,24 @@ class DKHPRegistration {
     }
   }
 
-  private delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  private async delay(ms: number, message: string = "Waiting"): Promise<void> {
+    const spinner = ora(message).start();
+    const endTime = Date.now() + ms;
+    let remaining = ms;
+
+    return new Promise((resolve) => {
+      const interval = setInterval(() => {
+        remaining = endTime - Date.now();
+        if (remaining <= 0) {
+          clearInterval(interval);
+          spinner.stop();
+          resolve();
+        } else {
+          const seconds = Math.ceil(remaining / 1000);
+          spinner.text = `${message}... ${chalk.bold(seconds)}s remaining`;
+        }
+      }, 100);
+    });
   }
 
   private async registerClass(className: string): Promise<boolean> {
@@ -133,26 +157,47 @@ class DKHPRegistration {
   private async reloadInIntervalsUntil(targetTime: Date): Promise<void> {
     if (!this.page) throw new Error("Page not initialized");
 
+    const reloadAndLog = async () => {
+      const startTime = performance.now();
+      await this.page!.reload();
+      const endTime = performance.now();
+      return endTime - startTime;
+    };
+
     let diff = targetTime.valueOf() - Date.now();
     if (diff < 0) return;
 
     while (diff > INTERRUPT_INTERVAL) {
-      console.log(`${Math.round(diff / 1000)}s left`);
+      const duration = intervalToDuration({
+        start: new Date(),
+        end: targetTime,
+      });
+      console.log(
+        chalk.gray(
+          `Reloading every 3 minutes. Time left: ${formatDuration(duration, {
+            format: ["hours", "minutes", "seconds"],
+          })}`,
+        ),
+      );
       await this.delay(INTERRUPT_INTERVAL);
-
-      const startTime = performance.now();
-      await this.page.reload();
-      const endTime = performance.now();
-
-      diff -= endTime - startTime + INTERRUPT_INTERVAL;
+      const reloadTime = await reloadAndLog();
+      diff = targetTime.valueOf() - Date.now();
     }
 
-    if (diff > 0) {
-      console.log(`Final wait: ${Math.round(diff / 1000)}s`);
-      await this.delay(diff + 100); // Small buffer to avoid timing issues
-    }
+    // Final countdown loop
+    const spinner = ora("Waiting for start time").start();
+    while (Date.now() < targetTime.valueOf()) {
+      const now = new Date();
+      const remainingSeconds = differenceInSeconds(targetTime, now);
+      const duration = intervalToDuration({ start: now, end: targetTime });
 
-    await this.page.reload();
+      spinner.text = `Starting in ${chalk.bold.red(remainingSeconds)} seconds... ${
+        duration.minutes ? `(${duration.minutes}m ${duration.seconds}s)` : ""
+      }`;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
+    spinner.succeed(chalk.green("Start time reached! Executing registration."));
+    await reloadAndLog();
   }
 
   private async waitForCourses(): Promise<void> {
@@ -204,7 +249,7 @@ class DKHPRegistration {
       } catch (error) {
         console.error(`Login attempt ${attempt} failed:`, error);
         if (attempt < this.config.loginTries) {
-          await this.delay(this.config.retryDelay);
+          await this.delay(this.config.retryDelay, "Retrying login");
         }
       }
     }
@@ -215,7 +260,11 @@ class DKHPRegistration {
     if (!this.config.timer || !this.config.startTime) return;
 
     const startTime = new Date(this.config.startTime);
-    console.log(`Timer enabled. Waiting until: ${startTime.toISOString()}`);
+    console.log(
+      chalk.blue(
+        `Timer enabled. Waiting for registration to start at: ${chalk.bold(format(startTime, "PPPpp"))}`,
+      ),
+    );
     await this.reloadInIntervalsUntil(startTime);
   }
 
@@ -269,11 +318,9 @@ class DKHPRegistration {
           // Continue monitoring in case of failures
         }
 
-        console.log("Waiting before next attempt...");
-        await this.delay(3000);
+        await this.delay(this.config.retryDelay, "Waiting before next attempt");
         await this.page.reload();
         await this.waitForCourses();
-        await this.delay(this.config.retryDelay);
       } catch (error) {
         console.error("Registration attempt failed:", error);
         await this.delay(this.config.retryDelay);
