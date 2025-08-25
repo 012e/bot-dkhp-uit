@@ -29,7 +29,7 @@ cp example.dkhp.config.json dkhp.config.json
   "loginTries": 10, // Số lần tự động đăng nhập lại nếu đăng nhập thất bại
   "retryDelay": 3000, // Thời gian cách nhau giữa những lần f5 :)
 
-  "timer": "false", // Tính năng tự động hẹn giờ bắt đầu
+  "timer": false, // Tính năng tự động hẹn giờ bắt đầu
   // Nếu tự động hẹn giờ bắt đầu được bật thì vào đúng thời gian này bot sẽ bắt đầu chạy
   "startTime": "2024-01-01T00:00:00Z" // 01/01/2024 lúc 00:00:00 (ISO 8601)
 }
